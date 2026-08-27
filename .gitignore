@@ -1,0 +1,5 @@
+DATABASE_URL
+.env
+__pycache__
+*.pyc
+dev.db
