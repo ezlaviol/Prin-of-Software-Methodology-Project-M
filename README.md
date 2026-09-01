@@ -60,14 +60,19 @@ curl -sS -X POST https://prin-of-software-methodology-project-m.onrender.com/api
 ### 3) Data Write (create post)
 
 ```bash
-curl -sS -X POST "https://prin-of-software-methodology-project-m.onrender.com/api/messages" -H "Content-Type: application/json" -H "Authorization: Bearer <access-token-here>" -d '{"body":"hello from curl"}'
+curl -sS -X POST "https://prin-of-software-methodology-project-m.onrender.com/api/messages" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access-token-here>" \
+  -d '{"body":"hello from curl"}'
 ```
 
 ### 4) Data Read (list posts)
 
 ```bash
-curl -sS "https://prin-of-software-methodology-project-m.onrender.com/api/messages" -H 'Authorization: Bearer <access-token-here>'
+curl -sS "https://prin-of-software-methodology-project-m.onrender.com/api/messages" \
+  -H "Authorization: Bearer <access-token-here>"
 ```
+
 
 ## Non-Production Notice
 
