@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Feed</title>
+  </head>
+  <body>
+    <h1>Feed</h1>
+    {% if error %}
+      <p style="color:red">{{ error }}</p>
+    {% endif %}
+    {% if success %}
+      <p style="color:green">{{ success }}</p>
+    {% endif %}
+    <form method="post" action="/posts">
+      <textarea name="body" rows="3" cols="40" placeholder="What's on your mind?" required></textarea><br>
+      <button type="submit">Post</button>
+    </form>
+    <hr>
+    <h2>Recent Posts</h2>
+    {% for post in posts %}
+      <div>
+        <strong>{{ post.user_email }}</strong>: {{ post.body }}
+        <em>({{ post.created_at }})</em>
+        <span>&#x2665; {{ post.like_count }}</span>
+      </div>
+      <hr>
+    {% else %}
+      <p>No posts yet.</p>
+    {% endfor %}
+    <p><a href="/logout">Logout</a></p>
+  </body>
+</html>
