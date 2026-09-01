@@ -6,6 +6,7 @@
   </head>
   <body>
     <h1>Feed</h1>
+    <p><a href="/logout">Logout</a></p>
     {% if error %}
       <p style="color:red">{{ error }}</p>
     {% endif %}
@@ -23,11 +24,36 @@
         <strong>{{ post.user_email }}</strong>: {{ post.body }}
         <em>({{ post.created_at }})</em>
         <span>&#x2665; {{ post.like_count }}</span>
+        <form method="post" action="/posts/{{ post.id }}/like" style="display:inline;">
+          <button type="submit">Like</button>
+        </form>
       </div>
       <hr>
     {% else %}
       <p>No posts yet.</p>
     {% endfor %}
-    <p><a href="/logout">Logout</a></p>
+    <h2>Your Friends</h2>
+    {% for friend in friends %}
+      <div>{{ friend.email }}</div>
+    {% else %}
+      <p>No friends yet.</p>
+    {% endfor %}
+    <hr>
+    <h2>Find Users</h2>
+    {% for user in users %}
+      <div>
+        {{ user.email }}
+        {% if user.is_friend %}
+          <em>(Already friends)</em>
+        {% else %}
+          <form method="post" action="/friends/add" style="display:inline;">
+            <input type="hidden" name="friend_id" value="{{ user.id }}">
+            <button type="submit">Add Friend</button>
+          </form>
+        {% endif %}
+      </div>
+    {% else %}
+      <p>No other users found.</p>
+    {% endfor %}
   </body>
 </html>
