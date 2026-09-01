@@ -22,7 +22,7 @@ def on_startup():
 
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.get("/health")
@@ -32,7 +32,7 @@ def health():
 
 @app.get("/register", response_class=HTMLResponse)
 def register_form(request: Request):
-    return templates.TemplateResponse(request, "register.html")
+    return templates.TemplateResponse("register.html", {"request": request})
 
 
 @app.post("/register")
@@ -41,12 +41,12 @@ async def register_form_post(request: Request, db=Depends(get_db)):
     email = form.get("email")
     password = form.get("password")
     if not email or not password:
-        return templates.TemplateResponse(request, "register.html", {"error": "Email and password required"})
+        return templates.TemplateResponse("register.html", {"request": request, "error": "Email and password required"})
     user_in = UserCreate(email=email, password=password)
     try:
         user = auth.create_user(db, user_in)
     except ValueError as e:
-        return templates.TemplateResponse(request, "register.html", {"error": str(e)})
+        return templates.TemplateResponse("register.html", {"request": request, "error": str(e)})
     token = auth.authenticate_user(db, email, password)
     response = RedirectResponse(url="/feed", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, samesite="lax")
@@ -55,7 +55,7 @@ async def register_form_post(request: Request, db=Depends(get_db)):
 
 @app.get("/login", response_class=HTMLResponse)
 def login_form(request: Request):
-    return templates.TemplateResponse(request, "login.html")
+    return templates.TemplateResponse("login.html", {"request": request})
 
 
 @app.post("/login")
@@ -64,10 +64,10 @@ async def login_form_post(request: Request, db=Depends(get_db)):
     email = form.get("email")
     password = form.get("password")
     if not email or not password:
-        return templates.TemplateResponse(request, "login.html", {"error": "Email and password required"})
+        return templates.TemplateResponse("login.html", {"request": request, "error": "Email and password required"})
     token = auth.authenticate_user_for_html(db, email, password)
     if not token:
-        return templates.TemplateResponse(request, "login.html", {"error": "Invalid credentials"})
+        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
     response = RedirectResponse(url="/feed", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(key="access_token", value=f"Bearer {token}", httponly=True, samesite="lax")
     return response
@@ -141,7 +141,7 @@ def feed_page(request: Request, db: Session = Depends(get_db)):
             "created_at": m.created_at,
             "like_count": like_count,
         })
-    return templates.TemplateResponse(request, "feed.html", {"posts": result})
+    return templates.TemplateResponse("feed.html", {"request": request, "posts": result})
 
 
 @app.post("/posts")
@@ -343,4 +343,4 @@ def friends_page(request: Request, token: str = Header(None, alias="authorizatio
     # Extract token from "Bearer <token>" format
     if token.startswith("Bearer "):
         token = token[7:]
-    return templates.TemplateResponse(request, "friends.html", {"token": token})
+    return templates.TemplateResponse("friends.html", {"request": request, "token": token})
