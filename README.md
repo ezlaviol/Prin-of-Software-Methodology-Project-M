@@ -1,6 +1,6 @@
 # Social Media App (Option A)
 
-This repository contains my Option A project for Principles of Software Methodology (Fall 2026): a simple social media web app built with a FastAPI backend and PostgreSQL database. The app supports account registration and login, token-based authentication, and basic data operations for social-media-style features. This project is for course demonstration purposes only.
+This repository contains my Social Media project for Principles of Software Methodology (Fall 2026): a simple social media web app built with a FastAPI backend and PostgreSQL database. The app supports account registration and login, token-based authentication, and basic data operations for social-media-style features. This project is for course demonstration purposes only.
 
 ## Architecture
 
@@ -16,13 +16,11 @@ This repository contains my Option A project for Principles of Software Methodol
 
 ## Demo Accounts
 
-> Fill these with your actual test/demo users if different.
-
 | Email | Password |
 |---|---|
-|  |  |
-|  |  |
-|  |  |
+| alex@example.com | ClassDemo123! |
+| johndoe@example.com | PASSWORD |
+| IHeartChezbrgrz@example.com | CHEESEBURGER |
 
 ## API Table
 
