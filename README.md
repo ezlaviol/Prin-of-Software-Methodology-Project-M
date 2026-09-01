@@ -34,18 +34,17 @@ This repository contains my Social Media project for Principles of Software Meth
 
 ## cURL Examples
 
-> Replace `https://<your-render-url>` with your deployed Render URL.
 
 ### 1) Health
 
 ```bash
-curl -sS https://<your-render-url>/health
+curl -sS https://prin-of-software-methodology-project-m.onrender.com/health
 ```
 
 ### 2) Register (or Login)
 
 ```bash
-curl -sS -X POST https://<your-render-url>/api/register \
+curl -sS -X POST https://prin-of-software-methodology-project-m.onrender.com/api/register \
   -H "Content-Type: application/json" \
   -d '{"email":"demo1@example.com","password":"DemoPass123!"}'
 ```
@@ -53,7 +52,7 @@ curl -sS -X POST https://<your-render-url>/api/register \
 If the user already exists, use login:
 
 ```bash
-curl -sS -X POST https://<your-render-url>/api/login \
+curl -sS -X POST https://prin-of-software-methodology-project-m.onrender.com/api/login \
   -H "Content-Type: application/json" \
   -d '{"email":"demo1@example.com","password":"DemoPass123!"}'
 ```
@@ -62,7 +61,7 @@ curl -sS -X POST https://<your-render-url>/api/login \
 
 ```bash
 TOKEN="<paste-access-token-here>"
-curl -sS -X POST https://<your-render-url>/api/posts \
+curl -sS -X POST https://prin-of-software-methodology-project-m.onrender.com/api/posts \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"content":"Hello from my Option A social app!"}'
@@ -72,7 +71,7 @@ curl -sS -X POST https://<your-render-url>/api/posts \
 
 ```bash
 TOKEN="<paste-access-token-here>"
-curl -sS https://<your-render-url>/api/posts \
+curl -sS https://prin-of-software-methodology-project-m.onrender.com/api/posts \
   -H "Authorization: Bearer $TOKEN"
 ```
 
