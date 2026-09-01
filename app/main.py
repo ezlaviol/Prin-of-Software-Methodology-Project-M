@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Depends, HTTPException, status, Header
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 import os
 from . import db, models, auth
 from .db import get_db
