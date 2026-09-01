@@ -6,7 +6,7 @@
   </head>
   <body>
     <h1>Feed</h1>
-    <p><a href="/logout">Logout</a></p>
+    <p><a href="/friends">Friends</a> | <a href="/logout">Logout</a></p>
     {% if error %}
       <p style="color:red">{{ error }}</p>
     {% endif %}
@@ -32,7 +32,7 @@
     {% else %}
       <p>No posts yet.</p>
     {% endfor %}
-    <h2>Your Friends</h2>
+    <h2 id="friends">Your Friends</h2>
     {% for friend in friends %}
       <div>{{ friend.email }}</div>
     {% else %}
