@@ -1,43 +1,83 @@
-# Social Media baseline app
+# Social Media App (Option A)
 
-This is a minimal FastAPI app for the "Social Media" project for your class. It includes user registration and login (email/password) with JWT authentication, a health endpoint, and a simple HTML UI to register and login.
+This repository contains my Option A project for Principles of Software Methodology (Fall 2026): a simple social media web app built with a FastAPI backend and PostgreSQL database. The app supports account registration and login, token-based authentication, and basic data operations for social-media-style features. This project is for course demonstration purposes only.
 
-Requirements
-- Python 3.10+
-- PostgreSQL database (provide connection via DATABASE_URL environment variable). For local development, the app falls back to a local SQLite file (dev.db) if DATABASE_URL is not set — do NOT use SQLite in production.
+## Architecture
 
-Setup (local)
+- **UI**: Browser-based interface (HTML pages served by FastAPI)
+- **API**: FastAPI service on Render (handles auth and data endpoints)
+- **Database host**: Supabase PostgreSQL
 
-1. Create a `.env` file in the project root with the following values:
+**Data flow**:
+1. User interacts with the browser UI.
+2. UI sends HTTP requests to the FastAPI API.
+3. FastAPI reads/writes data in Supabase Postgres using `DATABASE_URL`.
+4. FastAPI returns JSON/HTML responses back to the UI.
 
+## Demo Accounts
+
+> Fill these with your actual test/demo users if different.
+
+| Email | Password |
+|---|---|
+|  |  |
+|  |  |
+|  |  |
+
+## API Table
+
+| Method | Path | Auth required? | Purpose |
+|---|---|---|---|
+| GET | `/health` | No | Health check endpoint for uptime/status |
+| POST | `/api/register` | No | Register a new user account |
+| POST | `/api/login` | No | Log in and return bearer token |
+| POST | `/api/posts` | Yes | Create a post (write operation) |
+| GET | `/api/posts` | Yes | Read/list posts (read operation) |
+
+## cURL Examples
+
+> Replace `https://<your-render-url>` with your deployed Render URL.
+
+### 1) Health
+
+```bash
+curl -sS https://<your-render-url>/health
 ```
-DATABASE_URL=postgresql://username:password@host:port/dbname
-SECRET_KEY=replace-this-with-a-secret
-PORT=8000
+
+### 2) Register (or Login)
+
+```bash
+curl -sS -X POST https://<your-render-url>/api/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo1@example.com","password":"DemoPass123!"}'
 ```
 
-2. Install dependencies:
+If the user already exists, use login:
 
-pip install -r requirements.txt
+```bash
+curl -sS -X POST https://<your-render-url>/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo1@example.com","password":"DemoPass123!"}'
+```
 
-3. Run the app:
+### 3) Data Write (create post)
 
-# set PORT if you want, otherwise defaults to 8000
-uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+```bash
+TOKEN="<paste-access-token-here>"
+curl -sS -X POST https://<your-render-url>/api/posts \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"Hello from my Option A social app!"}'
+```
 
-Endpoints
-- GET /health — returns {"status": "ok"}
-- GET / — HTML home page
-- GET /register — HTML registration form
-- POST /register — form submit (HTML)
-- POST /api/register — JSON register: {"email": "...", "password": "..."}
-- GET /login — HTML login form
-- POST /login — form submit (HTML)
-- POST /api/login — JSON login: {"email": "...", "password": "..."} -> returns {"access_token": "...", "token_type": "bearer"}
+### 4) Data Read (list posts)
 
-Notes
-- The app expects `DATABASE_URL` (Postgres) in production. You can use Supabase for hosting Postgres and provide the full DATABASE_URL.
-- The JWT secret is taken from SECRET_KEY environment variable; set this in production.
+```bash
+TOKEN="<paste-access-token-here>"
+curl -sS https://<your-render-url>/api/posts \
+  -H "Authorization: Bearer $TOKEN"
+```
 
-What's next
-I implemented the project skeleton and the health/register/login flows plus HTML pages. Tell me to run your tests or to continue: I'll add the friends/messages API and matching HTML UI next.
+## Non-Production Notice
+
+This is **not** a production system. It is a class project only, and all data is fake/demo data.
