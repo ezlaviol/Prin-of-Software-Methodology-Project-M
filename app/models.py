@@ -12,10 +12,21 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # relationships
     messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
     likes = relationship("Like", back_populates="user", cascade="all, delete-orphan")
-    friendships = relationship("Friendship", back_populates="user", cascade="all, delete-orphan")
+
+    sent_friendships = relationship(
+        "Friendship",
+        foreign_keys="Friendship.user_id",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    received_friendships = relationship(
+        "Friendship",
+        foreign_keys="Friendship.friend_id",
+        back_populates="friend",
+        cascade="all, delete-orphan",
+    )
 
 
 class Message(Base):
@@ -50,6 +61,7 @@ class Friendship(Base):
     friend_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    user = relationship("User", back_populates="friendships", foreign_keys=[user_id])
+    user = relationship("User", foreign_keys=[user_id], back_populates="sent_friendships")
+    friend = relationship("User", foreign_keys=[friend_id], back_populates="received_friendships")
 
     __table_args__ = (UniqueConstraint('user_id', 'friend_id', name='uq_friendship_user_friend'),)
