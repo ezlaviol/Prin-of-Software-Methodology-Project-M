@@ -64,3 +64,20 @@ def authenticate_user(db: Session, email: str, password: str):
 
 def authenticate_user_for_html(db: Session, email: str, password: str):
     return authenticate_user(db, email, password)
+
+
+def get_current_user_id(token: str) -> int:
+    """Decode a JWT bearer token and return the user id (int).
+
+    Raises HTTPException 401 for invalid or expired tokens.
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        sub = payload.get("sub")
+        if sub is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return int(sub)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except (jwt.InvalidTokenError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid token")
