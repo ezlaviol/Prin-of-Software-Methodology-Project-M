@@ -1,6 +1,7 @@
 import os
 from passlib.context import CryptContext
 import jwt
+import hashlib
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -13,11 +14,15 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
 
 def get_password_hash(password: str) -> str:
-    return PWD_CONTEXT.hash(password)
+    # Hash with SHA-256 first to handle passwords > 72 bytes
+    sha_hash = hashlib.sha256(password.encode()).hexdigest()
+    return PWD_CONTEXT.hash(sha_hash)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return PWD_CONTEXT.verify(plain_password, hashed_password)
+    # Hash the plain password with SHA-256 before comparing
+    sha_hash = hashlib.sha256(plain_password.encode()).hexdigest()
+    return PWD_CONTEXT.verify(sha_hash, hashed_password)
 
 
 def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
