@@ -125,7 +125,7 @@ def feed_page(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
     token = raw[len("Bearer "):] if raw.startswith("Bearer ") else raw
     try:
-        auth.get_current_user_id(token)
+        current_user_id = auth.get_current_user_id(token)
     except Exception:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
     messages = db.query(models.Message).order_by(models.Message.created_at.desc()).all()
@@ -141,7 +141,25 @@ def feed_page(request: Request, db: Session = Depends(get_db)):
             "created_at": m.created_at,
             "like_count": like_count,
         })
-    return templates.TemplateResponse("feed.html", {"request": request, "posts": result})
+    friendships = db.query(models.Friendship).filter(models.Friendship.user_id == current_user_id).all()
+    friend_ids = {f.friend_id for f in friendships}
+    friends = db.query(models.User).filter(models.User.id.in_(friend_ids)).all() if friend_ids else []
+    users = db.query(models.User).filter(models.User.id != current_user_id).order_by(models.User.email.asc()).all()
+    discoverable_users = [
+        {"id": u.id, "email": u.email, "is_friend": u.id in friend_ids}
+        for u in users
+    ]
+    return templates.TemplateResponse(
+        "feed.html",
+        {
+            "request": request,
+            "posts": result,
+            "friends": friends,
+            "users": discoverable_users,
+            "error": request.query_params.get("error"),
+            "success": request.query_params.get("success"),
+        },
+    )
 
 
 @app.post("/posts")
@@ -162,6 +180,72 @@ async def create_post_form(request: Request, db: Session = Depends(get_db)):
         db.add(db_msg)
         db.commit()
     return RedirectResponse(url="/feed", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/posts/{msg_id}/like")
+def like_post_form(msg_id: int, request: Request, db: Session = Depends(get_db)):
+    """Like a post from the HTML feed."""
+    raw = request.cookies.get("access_token")
+    if not raw:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    token = raw[len("Bearer "):] if raw.startswith("Bearer ") else raw
+    try:
+        user_id = auth.get_current_user_id(token)
+    except Exception:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    db_msg = db.query(models.Message).filter(models.Message.id == msg_id).first()
+    if not db_msg:
+        return RedirectResponse(url="/feed?error=Message+not+found", status_code=status.HTTP_303_SEE_OTHER)
+
+    existing = db.query(models.Like).filter(
+        models.Like.message_id == msg_id,
+        models.Like.user_id == user_id,
+    ).first()
+    if existing:
+        return RedirectResponse(url="/feed?error=You+already+liked+this+post", status_code=status.HTTP_303_SEE_OTHER)
+
+    db.add(models.Like(message_id=msg_id, user_id=user_id))
+    db.commit()
+    return RedirectResponse(url="/feed?success=Post+liked", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/friends/add")
+async def add_friend_form(request: Request, db: Session = Depends(get_db)):
+    """Add a friend from the HTML feed."""
+    raw = request.cookies.get("access_token")
+    if not raw:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    token = raw[len("Bearer "):] if raw.startswith("Bearer ") else raw
+    try:
+        user_id = auth.get_current_user_id(token)
+    except Exception:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    form = await request.form()
+    friend_id_raw = form.get("friend_id")
+    try:
+        friend_id = int(friend_id_raw)
+    except (TypeError, ValueError):
+        return RedirectResponse(url="/feed?error=Invalid+friend+selection", status_code=status.HTTP_303_SEE_OTHER)
+
+    if friend_id == user_id:
+        return RedirectResponse(url="/feed?error=Cannot+add+yourself+as+a+friend", status_code=status.HTTP_303_SEE_OTHER)
+
+    friend = db.query(models.User).filter(models.User.id == friend_id).first()
+    if not friend:
+        return RedirectResponse(url="/feed?error=User+not+found", status_code=status.HTTP_303_SEE_OTHER)
+
+    existing = db.query(models.Friendship).filter(
+        models.Friendship.user_id == user_id,
+        models.Friendship.friend_id == friend_id,
+    ).first()
+    if existing:
+        return RedirectResponse(url="/feed?error=You+are+already+friends", status_code=status.HTTP_303_SEE_OTHER)
+
+    db.add(models.Friendship(user_id=user_id, friend_id=friend_id))
+    db.commit()
+    return RedirectResponse(url="/feed?success=Friend+added", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/logout")
@@ -336,11 +420,6 @@ def list_users(db: Session = Depends(get_db)):
 # ============ HTML UI ============
 
 @app.get("/friends", response_class=HTMLResponse)
-def friends_page(request: Request, token: str = Header(None, alias="authorization")):
-    """Friends page."""
-    if not token:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    # Extract token from "Bearer <token>" format
-    if token.startswith("Bearer "):
-        token = token[7:]
-    return templates.TemplateResponse("friends.html", {"request": request, "token": token})
+def friends_page():
+    """Friends are managed from the feed page."""
+    return RedirectResponse(url="/feed", status_code=status.HTTP_302_FOUND)
