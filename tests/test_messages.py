@@ -41,6 +41,15 @@ def _register_and_login(email="test@example.com"):
     return resp.json()["access_token"]
 
 
+def _create_message(token, body="hello from test"):
+    resp = client.post(
+        "/api/messages",
+        json={"body": body},
+        headers={"Authorization": "Bearer " + token},
+    )
+    return resp.json()["id"]
+
+
 def test_create_message_success():
     token = _register_and_login()
     resp = client.post(
@@ -63,6 +72,43 @@ def test_create_message_invalid_token():
     resp = client.post(
         "/api/messages",
         json={"body": "bad token"},
-        headers={"Authorization": "Bearer not.a.valid.jwt.token"},
+        headers={"Authorization": "******"},
     )
+    assert resp.status_code == 401
+
+
+def test_owner_can_edit_own_message():
+    token = _register_and_login()
+    msg_id = _create_message(token, body="original")
+
+    resp = client.patch(
+        f"/api/messages/{msg_id}",
+        json={"body": "updated"},
+        headers={"Authorization": "Bearer " + token},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["body"] == "updated"
+
+
+def test_non_owner_cannot_edit_someone_elses_message():
+    owner_token = _register_and_login("owner@example.com")
+    other_token = _register_and_login("other@example.com")
+    msg_id = _create_message(owner_token, body="original")
+
+    resp = client.patch(
+        f"/api/messages/{msg_id}",
+        json={"body": "hijacked"},
+        headers={"Authorization": "Bearer " + other_token},
+    )
+
+    assert resp.status_code == 403
+
+
+def test_anonymous_user_cannot_edit_message():
+    token = _register_and_login()
+    msg_id = _create_message(token, body="original")
+
+    resp = client.patch(f"/api/messages/{msg_id}", json={"body": "updated"})
+
     assert resp.status_code == 401

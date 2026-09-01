@@ -24,6 +24,9 @@
         <strong>{{ post.user_email }}</strong>: {{ post.body }}
         <em>({{ post.created_at }})</em>
         <span>&#x2665; {{ post.like_count }}</span>
+        {% if post.user_id == current_user_id %}
+          <a href="/posts/{{ post.id }}/edit">Edit</a>
+        {% endif %}
         <form method="post" action="/posts/{{ post.id }}/like" style="display:inline;">
           <button type="submit">Like</button>
         </form>

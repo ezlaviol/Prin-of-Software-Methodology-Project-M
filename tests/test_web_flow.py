@@ -78,6 +78,28 @@ def test_create_post_via_form(client):
     assert resp2.headers["location"] == "/feed"
 
 
+def test_owner_can_access_edit_form_and_update_post(client):
+    resp = client.post("/register", data={"email": _EMAIL, "password": _PWD}, follow_redirects=False)
+    cookie = resp.cookies.get("access_token")
+
+    client.cookies.set("access_token", cookie)
+    client.post("/posts", data={"body": "Original post"})
+    msg_id = client.get("/api/messages").json()[0]["id"]
+
+    edit_page = client.get(f"/posts/{msg_id}/edit", follow_redirects=False)
+    assert edit_page.status_code == 200
+    assert "Edit Post" in edit_page.text
+    assert "Original post" in edit_page.text
+
+    update_resp = client.post(f"/posts/{msg_id}/edit", data={"body": "Updated post"}, follow_redirects=False)
+    assert update_resp.status_code == 303
+    assert "success=Post+updated" in update_resp.headers["location"]
+    assert client.get("/api/messages").json()[0]["body"] == "Updated post"
+
+    feed_resp = client.get("/feed")
+    assert f'/posts/{msg_id}/edit' in feed_resp.text
+
+
 def test_logout_clears_cookie(client):
     # Register to get a cookie, then logout should clear it
     client.post("/register", data={"email": _EMAIL, "password": _PWD}, follow_redirects=False)
@@ -87,6 +109,53 @@ def test_logout_clears_cookie(client):
     # Cookie should be cleared (expired/absent) in the response
     set_cookie = resp.headers.get("set-cookie", "")
     assert "access_token" not in resp.cookies or set_cookie == "" or "max-age=0" in set_cookie.lower() or "expires" in set_cookie.lower()
+
+
+def test_non_owner_cannot_access_edit_ui(client):
+    owner_email = "owner@example.com"
+    other_email = "other@example.com"
+
+    resp = client.post("/register", data={"email": owner_email, "password": _PWD}, follow_redirects=False)
+    cookie = resp.cookies.get("access_token")
+    client.cookies.set("access_token", cookie)
+    client.post("/posts", data={"body": "Owner post"})
+    msg_id = client.get("/api/messages").json()[0]["id"]
+
+    client.get("/logout", follow_redirects=False)
+    resp = client.post("/register", data={"email": other_email, "password": _PWD}, follow_redirects=False)
+    other_cookie = resp.cookies.get("access_token")
+    client.cookies.set("access_token", other_cookie)
+
+    feed_resp = client.get("/feed")
+    assert f'/posts/{msg_id}/edit' not in feed_resp.text
+
+    edit_page = client.get(f"/posts/{msg_id}/edit", follow_redirects=False)
+    assert edit_page.status_code == 302
+    assert "error=Not+authorized" in edit_page.headers["location"]
+
+    update_resp = client.post(f"/posts/{msg_id}/edit", data={"body": "Hijacked"}, follow_redirects=False)
+    assert update_resp.status_code == 303
+    assert "error=Not+authorized" in update_resp.headers["location"]
+    assert client.get("/api/messages").json()[0]["body"] == "Owner post"
+
+
+def test_anonymous_user_cannot_access_edit_ui(client):
+    resp = client.post("/register", data={"email": _EMAIL, "password": _PWD}, follow_redirects=False)
+    cookie = resp.cookies.get("access_token")
+    client.cookies.set("access_token", cookie)
+    client.post("/posts", data={"body": "Owner post"})
+    msg_id = client.get("/api/messages").json()[0]["id"]
+
+    client.get("/logout", follow_redirects=False)
+    client.cookies.clear()
+
+    edit_page = client.get(f"/posts/{msg_id}/edit", follow_redirects=False)
+    assert edit_page.status_code == 302
+    assert edit_page.headers["location"] == "/login"
+
+    update_resp = client.post(f"/posts/{msg_id}/edit", data={"body": "Updated"}, follow_redirects=False)
+    assert update_resp.status_code == 303
+    assert update_resp.headers["location"] == "/login"
 
 
 def test_like_post_via_feed_form_and_prevent_duplicate(client):
