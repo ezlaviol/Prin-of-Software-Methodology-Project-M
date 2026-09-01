@@ -154,6 +154,7 @@ def feed_page(request: Request, db: Session = Depends(get_db)):
         {
             "request": request,
             "posts": result,
+            "current_user_id": current_user_id,
             "friends": friends,
             "users": discoverable_users,
             "error": request.query_params.get("error"),
@@ -208,6 +209,63 @@ def like_post_form(msg_id: int, request: Request, db: Session = Depends(get_db))
     db.add(models.Like(message_id=msg_id, user_id=user_id))
     db.commit()
     return RedirectResponse(url="/feed?success=Post+liked", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/posts/{msg_id}/edit", response_class=HTMLResponse)
+def edit_post_form_page(msg_id: int, request: Request, db: Session = Depends(get_db)):
+    """Show the edit form for a post owner."""
+    raw = request.cookies.get("access_token")
+    if not raw:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    token = raw[len("Bearer "):] if raw.startswith("Bearer ") else raw
+    try:
+        user_id = auth.get_current_user_id(token)
+    except Exception:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    db_msg = db.query(models.Message).filter(models.Message.id == msg_id).first()
+    if not db_msg:
+        return RedirectResponse(url="/feed?error=Message+not+found", status_code=status.HTTP_302_FOUND)
+    if db_msg.user_id != user_id:
+        return RedirectResponse(url="/feed?error=Not+authorized", status_code=status.HTTP_302_FOUND)
+
+    return templates.TemplateResponse(
+        "edit_post.html",
+        {
+            "request": request,
+            "post": db_msg,
+            "error": request.query_params.get("error"),
+        },
+    )
+
+
+@app.post("/posts/{msg_id}/edit")
+async def edit_post_form(msg_id: int, request: Request, db: Session = Depends(get_db)):
+    """Update a post from the web form."""
+    raw = request.cookies.get("access_token")
+    if not raw:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    token = raw[len("Bearer "):] if raw.startswith("Bearer ") else raw
+    try:
+        user_id = auth.get_current_user_id(token)
+    except Exception:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    db_msg = db.query(models.Message).filter(models.Message.id == msg_id).first()
+    if not db_msg:
+        return RedirectResponse(url="/feed?error=Message+not+found", status_code=status.HTTP_303_SEE_OTHER)
+    if db_msg.user_id != user_id:
+        return RedirectResponse(url="/feed?error=Not+authorized", status_code=status.HTTP_303_SEE_OTHER)
+
+    form = await request.form()
+    body = form.get("body", "").strip()
+    if not body:
+        return RedirectResponse(url=f"/posts/{msg_id}/edit?error=Post+body+required", status_code=status.HTTP_303_SEE_OTHER)
+
+    db_msg.body = body
+    db.commit()
+    db.refresh(db_msg)
+    return RedirectResponse(url="/feed?success=Post+updated", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/friends/add")
