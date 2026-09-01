@@ -260,7 +260,15 @@ async def edit_post_form(msg_id: int, request: Request, db: Session = Depends(ge
     form = await request.form()
     body = form.get("body", "").strip()
     if not body:
-        return RedirectResponse(url=f"/posts/{msg_id}/edit?error=Post+body+required", status_code=status.HTTP_303_SEE_OTHER)
+        return templates.TemplateResponse(
+            "edit_post.html",
+            {
+                "request": request,
+                "post": db_msg,
+                "error": "Post body required",
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
 
     db_msg.body = body
     db.commit()
