@@ -29,8 +29,8 @@ This repository contains my Social Media project for Principles of Software Meth
 | GET | `/health` | No | Health check endpoint for uptime/status |
 | POST | `/api/register` | No | Register a new user account |
 | POST | `/api/login` | No | Log in and return bearer token |
-| POST | `/api/posts` | Yes | Create a post (write operation) |
-| GET | `/api/posts` | Yes | Read/list posts (read operation) |
+| POST | `/api/messages` | Yes | Create a post (write operation) |
+| GET | `/api/messages` | Yes | Read/list posts (read operation) |
 
 ## cURL Examples
 
