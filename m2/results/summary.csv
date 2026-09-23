@@ -1,0 +1,31 @@
+label,env_note,concurrency,duration_s,attempts,successes,errors,rps_success,p50_ms,p95_ms,p99_ms,max_ms,error_rate,cpu,memory,read_write,cold_start_latency
+cold start test run,https://prin-of-software-methodology-project-m.onrender.com,4,60.223,623,623,0,10.345,382.14,524.54,609.12,674.14,0,,,,
+test run,https://prin-of-software-methodology-project-m.onrender.com,4,30.347,4,3,1,0.099,28225.58,30023.71,30277.3,30340.7,0.25,,,,
+test run,https://prin-of-software-methodology-project-m.onrender.com,4,84.1,12,11,1,0.131,27662.41,29096.09,29918.85,30124.54,0.0833,,,,
+Hosted Run,https://prin-of-software-methodology-project-m.onrender.com,4,83.656,12,12,0,0.143,26713.77,28194.14,28333.71,28368.6,0,9.69%,16.15%,0,10
+Hosted Run 1-Concurrent Read Path,https://prin-of-software-methodology-project-m.onrender.com,1,81.284,3,3,0,0.037,26624.11,28472.14,28636.41,28677.48,0,3.54%,16.15%,0,10
+Hosted Run 4-Concurrent Read Path,https://prin-of-software-methodology-project-m.onrender.com,4,81.178,12,12,0,0.148,26164.48,28832.52,29110.24,29179.66,0,8.36%,16.15%,0,10
+Hosted Run 8-Concurrent Read Path,https://prin-of-software-methodology-project-m.onrender.com,8,86.3,24,24,0,0.278,26043.39,28825.19,29080.45,29125.85,0,20.26%,16.55%,0,10
+Hosted Run 16-Concurrent Read Path,https://prin-of-software-methodology-project-m.onrender.com,16,89.12,41,25,16,0.281,28809.51,30376.16,30433.39,30436.39,0.3902,28.90%,17.49%,0,10
+Hosted Run 32-Concurrent Read Path,https://prin-of-software-methodology-project-m.onrender.com,32,64.86,64,0,64,0,30800.23,31218.97,31332.87,31374.31,1,31.12%,18.50%,0,10
+Hosted Run 16-Concurrent Write Path,https://prin-of-software-methodology-project-m.onrender.com,16,89.739,44,33,11,0.368,27733.94,30215.63,30290.51,30343.21,0.25,29.31%,18.68%,1,10
+Hosted Run 8-Concurrent Write Path,https://prin-of-software-methodology-project-m.onrender.com,8,86.457,24,24,0,0.278,25557.83,28901.7,29004.73,29029.16,0,17.14%,18.56%,1,10
+Hosted Run 16-Concurrent Mix Path,https://prin-of-software-methodology-project-m.onrender.com,16,87.212,190,33,157,0.378,290.27,29985.34,30187.7,30263.39,0.8263,29.83%,18.70%,0.2,10
+Hosted Run 4-Concurrent Mix Path,https://prin-of-software-methodology-project-m.onrender.com,4,86.65,40,10,30,0.115,252.06,29924.05,30004.43,30041.59,0.75,8.64%,18.55%,0.2,10
+Hosted Run 8-Concurrent Write Path,https://prin-of-software-methodology-project-m.onrender.com,8,87.515,24,23,1,0.263,27629.06,29676.25,30103.84,30189.35,0.0417,15.93%,18.59%,1,10
+Hosted Run 4-Concurrent Write Path,https://prin-of-software-methodology-project-m.onrender.com,4,81.615,12,12,0,0.147,25851.45,29112.25,29672.26,29812.26,0,10.43%,18.58%,1,10
+Hosted Run 8-Concurrent Read Path,https://prin-of-software-methodology-project-m.onrender.com,8,86.787,24,22,2,0.253,27429.11,29901.93,30227.83,30255.07,0.0833,13.71%,18.67%,0,10
+label,env_note,concurrency,duration_s,attempts,successes,errors,rps_success,p50_ms,p95_ms,p99_ms,max_ms,error_rate,cpu,memory (K),read_write,cold_start_latency
+Local Run 1-Concurrent Read Path,http://127.0.0.1:8000,1,60.008,3678,3678,0,61.292,13.48,32.91,39.14,49.08,0,18%,23896,0,10
+Local Run 4-Concurrent Read Path,http://127.0.0.1:8000,4,60.014,7987,7987,0,133.086,27.57,51.52,63.33,89.68,0,34%,59796,0,10
+Local Run 8-Concurrent Read Path,http://127.0.0.1:8000,8,60.024,6440,6440,0,107.291,66.27,123.26,139.51,167.49,0,23%,63984,0,10
+Local Run 16-Concurrent Read Path,http://127.0.0.1:8000,16,60.065,8304,8304,0,138.251,110.93,152.13,195.04,266.15,0,44%,76972,0,10
+Local Run 32-Concurrent Read Path,http://127.0.0.1:8000,32,60.222,8470,8470,0,140.647,221.33,277.71,319.07,419.59,0,41%,81552,0,10
+Local Run 16-Concurrent Write Path,http://127.0.0.1:8000,16,60.081,8569,8569,0,142.623,108.83,143.88,165.35,199.34,0,36%,70780,1,10
+Local Run 32-Concurrent Write Path,http://127.0.0.1:8000,32,60.203,8264,8264,0,137.27,223.17,303.9,342.34,388.92,0,47%,82260,1,10
+Local Run 16-Concurrent Mix Path,http://127.0.0.1:8000,16,60.011,19869,3220,16649,53.657,38.5,99.68,105.74,156.89,0.8379,47%,74076,0.2,10
+Local Run 8-Concurrent Mix Path,http://127.0.0.1:8000,8,60.016,19086,2782,16304,46.355,20,50.49,70.77,146.75,0.8542,35%,73672,0.2,10
+Local Run 4-Concurrent Mix Path,http://127.0.0.1:8000,4,60.015,15494,1580,13914,26.327,14.79,31.38,38.81,71.87,0.898,29%,74280,0.2,10
+Local Run 4-Concurrent Mix Path,http://127.0.0.1:8000,1,60,4886,984,3902,16.4,12.93,27.49,32.8,44.21,0.7986,5%,65736,0.2,10
+Local Run 32-Concurrent Write Path,http://127.0.0.1:8000,32,60.351,4976,4976,0,82.45,390.98,434.85,452.96,479.13,0,21%,81558,1,10
+Local Run 32-Concurrent Read Path,http://127.0.0.1:8000,32,60.354,4932,4932,0,81.718,388.98,492.25,513.85,550.49,0,26%,76416,0,10

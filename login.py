@@ -5,7 +5,7 @@ import sys
 
 base, email, password = sys.argv[1], sys.argv[2], sys.argv[3]
 req = urllib.request.Request(
-    base.rstrip("/") + "/api/auth/login",
+    base.rstrip("/") + "/api/login",
     data=json.dumps({"email": email, "password": password}).encode(),
     headers={"Content-Type": "application/json"},
     method="POST",

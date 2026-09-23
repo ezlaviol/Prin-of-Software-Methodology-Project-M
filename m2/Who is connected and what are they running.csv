@@ -1,0 +1,16 @@
+pid,usename,application_name,client_addr,state,wait_event_type,query_start,query_preview
+1654529,postgres,supabase/dashboard-query-editor,2600:1f18:2a66:6e05:70cb:a412:432f:9c4f,active,null,2026-09-11 16:42:54.77552+00,"SELECT pid,
+ usename,
+ application_name,
+ client_addr,
+ state,
+ wait_event_"
+1648484,pgbouncer,Supavisor (auth_query),2600:1f18:2e13:9d01:637d:5b9b:788:6167,idle,Client,2026-09-11 16:42:47.186676+00,SELECT * FROM pgbouncer.get_auth($1)
+1331662,supabase_admin,postgres_exporter,::1,idle,Client,2026-09-11 16:41:59.277912+00,"SELECT setting as connection_count
+FROM pg_settings
+WHERE name = 'max_connection"
+1648485,postgres,Supavisor,2600:1f18:2e13:9d01:637d:5b9b:788:6167,idle,Client,2026-09-11 16:34:55.576667+00,ROLLBACK
+1510359,supabase_admin,,::1,idle,Client,2026-09-11 12:48:57.039627+00,show archive_mode;
+213333,authenticator,PostgREST 14.5,::1,idle,Client,2026-08-28 18:04:38.349711+00,"LISTEN ""pgrst"""
+4376,supabase_admin,pg_cron scheduler,null,null,Extension,null,
+4375,postgres,pg_net 0.20.4,null,idle,Extension,null,
