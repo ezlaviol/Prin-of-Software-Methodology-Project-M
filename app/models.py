@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, func, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, func, ForeignKey, Text, UniqueConstraint, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -39,6 +39,11 @@ class Message(Base):
 
     user = relationship("User", back_populates="messages")
     likes = relationship("Like", back_populates="message", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_messages_created_at_id", "created_at", "id"),    # global feed ordering
+        Index("ix_messages_user_created", "user_id", "created_at"),  # per-user / friends feed
+        )
 
 
 class Like(Base):
