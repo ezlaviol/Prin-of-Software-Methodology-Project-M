@@ -35,6 +35,11 @@
     {% else %}
       <p>No posts yet.</p>
     {% endfor %}
+      <p>
+        {% if pg.page > 1 %}<a href="/feed?page={{ pg.page - 1 }}">&laquo; Prev</a>{% endif %}
+        Page {{ pg.page }} of {{ pg.pages }} ({{ pg.total }} posts)
+        {% if pg.page < pg.pages %}<a href="/feed?page={{ pg.page + 1 }}">Next &raquo;</a>{% endif %}
+      </p>
     <h2 id="friends">Your Friends</h2>
     {% for friend in friends %}
       <div>{{ friend.email }}</div>

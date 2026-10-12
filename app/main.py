@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Request, Depends, HTTPException, status, Header
+from fastapi import FastAPI, Request, Depends, HTTPException, status, Header, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, func, select, and_
 import os
 from . import db, models, auth
 from .db import get_db
@@ -12,6 +12,53 @@ app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+def _page_params(page: int, page_size: int):
+    return max(page, 1), min(max(page_size, 1), 100)
+
+
+def _feed_query(db: Session, author_id: int | None = None, friends_of: int | None = None):
+    """messages JOIN users (+ likes count) (+ friendships when friends_of is set)."""
+    like_count = (
+        select(func.count(models.Like.id))
+        .where(models.Like.message_id == models.Message.id)
+        .correlate(models.Message)
+        .scalar_subquery()
+    )
+    q = (
+        db.query(
+            models.Message.id,
+            models.Message.user_id,
+            models.User.email.label("user_email"),
+            models.Message.body,
+            models.Message.created_at,
+            like_count.label("like_count"),
+        )
+        .join(models.User, models.User.id == models.Message.user_id)
+    )
+    if author_id is not None:
+        q = q.filter(models.Message.user_id == author_id)
+    if friends_of is not None:
+        q = q.join(
+            models.Friendship,
+            and_(models.Friendship.friend_id == models.Message.user_id,
+                 models.Friendship.user_id == friends_of),
+        )
+    return q
+
+
+def _paginate(q, page: int, page_size: int):
+    page, page_size = _page_params(page, page_size)
+    total = q.with_entities(func.count(models.Message.id)).order_by(None).scalar()
+    rows = (
+        q.order_by(models.Message.created_at.desc(), models.Message.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    items = [dict(r._mapping) for r in rows]
+    pages = max((total + page_size - 1) // page_size, 1)
+    return {"items": items, "page": page, "page_size": page_size, "total": total, "pages": pages}
 
 
 @app.on_event("startup")
@@ -118,7 +165,7 @@ def get_token_from_header(authorization: str = Header(None)) -> str:
 # ============ MESSAGES API ============
 
 @app.get("/feed", response_class=HTMLResponse)
-def feed_page(request: Request, db: Session = Depends(get_db)):
+def feed_page(request: Request, page: int = 1, db: Session = Depends(get_db)):
     """Feed page (shows all messages)."""
     raw = request.cookies.get("access_token")
     if not raw:
@@ -130,17 +177,11 @@ def feed_page(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
     messages = db.query(models.Message).order_by(models.Message.created_at.desc()).all()
     result = []
-    for m in messages:
-        user = db.query(models.User).filter(models.User.id == m.user_id).first()
-        like_count = db.query(models.Like).filter(models.Like.message_id == m.id).count()
-        result.append({
-            "id": m.id,
-            "user_id": m.user_id,
-            "user_email": user.email if user else "Unknown",
-            "body": m.body,
-            "created_at": m.created_at,
-            "like_count": like_count,
-        })
+
+    
+    pg = _paginate(_feed_query(db), page, 20)
+    result = pg["items"]
+
     friendships = db.query(models.Friendship).filter(models.Friendship.user_id == current_user_id).all()
     friend_ids = {f.friend_id for f in friendships}
     friends = db.query(models.User).filter(models.User.id.in_(friend_ids)).all() if friend_ids else []
@@ -154,6 +195,7 @@ def feed_page(request: Request, db: Session = Depends(get_db)):
         {
             "request": request,
             "posts": result,
+            "pg": pg,
             "current_user_id": current_user_id,
             "friends": friends,
             "users": discoverable_users,
@@ -340,36 +382,21 @@ def create_message(
     return {"id": db_msg.id, "user_id": db_msg.user_id, "body": db_msg.body, "created_at": db_msg.created_at}
 
 
+# 3 tables (messages + users + likes), LIST
 @app.get("/api/messages")
-def list_messages(db: Session = Depends(get_db), authorization: str = Header(None)):
-    """List all messages (feed)."""
-    if not authorization:
-        # Allow unauthenticated access to list messages
-        messages = db.query(models.Message).order_by(models.Message.created_at.desc()).all()
-    else:
-        token = authorization.split()[-1] if " " in authorization else authorization
-        try:
-            user_id = auth.get_current_user_id(token)
-        except HTTPException:
-            # Fall back to listing all if token is invalid
-            messages = db.query(models.Message).order_by(models.Message.created_at.desc()).all()
-            return [{"id": m.id, "user_id": m.user_id, "body": m.body, "created_at": m.created_at} for m in messages]
-        messages = db.query(models.Message).order_by(models.Message.created_at.desc()).all()
-    
-    result = []
-    for m in messages:
-        user = db.query(models.User).filter(models.User.id == m.user_id).first()
-        like_count = db.query(models.Like).filter(models.Like.message_id == m.id).count()
-        result.append({
-            "id": m.id,
-            "user_id": m.user_id,
-            "user_email": user.email if user else "Unknown",
-            "body": m.body,
-            "created_at": m.created_at,
-            "like_count": like_count,
-        })
-    return result
+def list_messages(page: int = Query(1), page_size: int = Query(20), db: Session = Depends(get_db)):
+    return _paginate(_feed_query(db), page, page_size)
 
+# 2 tables (messages + users), SINGLE
+@app.get("/api/messages/{msg_id}")
+def get_message(msg_id: int, db: Session = Depends(get_db)):
+    row = (db.query(models.Message.id, models.Message.body, models.Message.created_at,
+                    models.User.id.label("user_id"), models.User.email.label("user_email"))
+           .join(models.User, models.User.id == models.Message.user_id)
+           .filter(models.Message.id == msg_id).first())
+    if not row:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return dict(row._mapping)
 
 @app.patch("/api/messages/{msg_id}")
 def edit_message(
@@ -476,11 +503,51 @@ def list_friends(
     return result
 
 
+# 1 table, LIST
 @app.get("/api/users")
-def list_users(db: Session = Depends(get_db)):
-    """List all users (for discovery)."""
-    users = db.query(models.User).all()
-    return [{"id": u.id, "email": u.email} for u in users]
+def list_users(page: int = Query(1), page_size: int = Query(20), db: Session = Depends(get_db)):
+    page, page_size = _page_params(page, page_size)
+    total = db.query(func.count(models.User.id)).scalar()
+    rows = (db.query(models.User.id, models.User.email)
+            .order_by(models.User.id).offset((page - 1) * page_size).limit(page_size).all())
+    return {"items": [dict(r._mapping) for r in rows], "page": page,
+            "page_size": page_size, "total": total}
+
+# 1 table, SINGLE
+@app.get("/api/users/{user_id}")
+def get_user(user_id: int, db: Session = Depends(get_db)):
+    u = db.query(models.User.id, models.User.email, models.User.created_at)\
+          .filter(models.User.id == user_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    return dict(u._mapping)
+
+# 3 tables (messages + users + likes), LIST filtered by author
+@app.get("/api/users/{user_id}/messages")
+def list_user_messages(user_id: int, page: int = Query(1), page_size: int = Query(20),
+                       db: Session = Depends(get_db)):
+    return _paginate(_feed_query(db, author_id=user_id), page, page_size)
+
+# 4 tables (messages + users + friendships + likes), LIST
+@app.get("/api/feed/friends")
+def friends_feed(page: int = Query(1), page_size: int = Query(20),
+                 db: Session = Depends(get_db), authorization: str = Header(None)):
+    user_id = auth.get_current_user_id(get_token_from_header(authorization))
+    return _paginate(_feed_query(db, friends_of=user_id), page, page_size)
+
+# 4 tables (users + messages + likes + friendships), SINGLE aggregate
+@app.get("/api/users/{user_id}/summary")
+def user_summary(user_id: int, db: Session = Depends(get_db)):
+    u = db.query(models.User).filter(models.User.id == user_id).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    msgs = db.query(func.count(models.Message.id)).filter(models.Message.user_id == user_id).scalar()
+    likes_received = (db.query(func.count(models.Like.id))
+                      .join(models.Message, models.Message.id == models.Like.message_id)
+                      .filter(models.Message.user_id == user_id).scalar())
+    friends = db.query(func.count(models.Friendship.id)).filter(models.Friendship.user_id == user_id).scalar()
+    return {"id": u.id, "email": u.email, "message_count": msgs,
+            "likes_received": likes_received, "friend_count": friends}
 
 
 # ============ HTML UI ============
