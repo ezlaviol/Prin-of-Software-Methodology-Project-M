@@ -32,7 +32,7 @@ from django.db.models import Count, Exists, F, OuterRef, Window     # noqa: E402
 from django.db.models.functions import Now, RowNumber               # noqa: E402
 from django.utils import timezone                                   # noqa: E402
 
-from djdemo.models import Friendship, Post, PostStats, User         # noqa: E402
+from djdemo.models import Friendship, Message, MessageStats, User         # noqa: E402
 
 
 def measure(label, fn):
@@ -62,101 +62,101 @@ def main():
         c.execute("SELECT user_id FROM friendships GROUP BY user_id "
                   "HAVING count(*) BETWEEN 10 AND 20 ORDER BY user_id LIMIT 1")
         me = c.fetchone()[0]
-        c.execute("SELECT author_id FROM posts GROUP BY author_id ORDER BY count(*) DESC LIMIT 1")
-        top_author = c.fetchone()[0]
-    print(f"Example user: {me}; busiest author: {top_author}")
+        c.execute("SELECT user_id FROM messages GROUP BY user_id ORDER BY count(*) DESC LIMIT 1")
+        top_user = c.fetchone()[0]
+    print(f"Example user: {me}; busiest user: {top_user}")
 
     # 1. Related rows: N+1 vs. select_related (JOIN) ---------------------
-    title("1. Newest 20 posts with their authors' emails")
-    measure("lazy loading", lambda: len({p.author.email for p in Post.objects.order_by("-created_at")[:20]}))
-    measure("select_related", lambda: len({p.author.email for p in
-                                           Post.objects.select_related("author").order_by("-created_at")[:20]}))
+    title("1. Newest 20 messages with their users' emails")
+    measure("lazy loading", lambda: len({p.user.email for p in Message.objects.order_by("-created_at")[:20]}))
+    measure("select_related", lambda: len({p.user.email for p in
+                                           Message.objects.select_related("user").order_by("-created_at")[:20]}))
 
     # 2. Aggregation: count in Python vs. annotate(Count) ----------------
-    title("2. Like counts for the busiest author's posts")
-    counted = Post.objects.filter(author_id=top_author).annotate(n=Count("likes"))
-    measure("Python loop", lambda: sum(p.likes.count() for p in Post.objects.filter(author_id=top_author)))
+    title("2. Like counts for the busiest user's messages")
+    counted = Message.objects.filter(user_id=top_user).annotate(n=Count("likes"))
+    measure("Python loop", lambda: sum(p.likes.count() for p in Message.objects.filter(user_id=top_user)))
     measure("annotate", lambda: sum(p.n for p in counted))
     show_sql(counted.values("id", "n"))
 
     # 3. Multi-table join: follow relations with __ ----------------------
-    title("3. Feed: 20 newest posts by my friends, with author email")
-    feed = (Post.objects.filter(author__friend_of__user_id=me)      # posts -> users -> friendships
-            .select_related("author").order_by("-created_at")[:20])
+    title("3. Feed: 20 newest messages by my friends, with user email")
+    feed = (Message.objects.filter(user__friend_of__user_id=me)      # messages -> users -> friendships
+            .select_related("user").order_by("-created_at")[:20])
 
     def python_way():
-        posts = [p for f in Friendship.objects.filter(user_id=me) for p in f.friend.posts.all()]
-        posts.sort(key=lambda p: p.created_at, reverse=True)
-        return (posts[0].id, posts[0].author.email)
+        messages = [p for f in Friendship.objects.filter(user_id=me) for p in f.friend.messages.all()]
+        messages.sort(key=lambda p: p.created_at, reverse=True)
+        return (messages[0].id, messages[0].user.email)
 
     measure("Python loops", python_way)
-    measure("one JOIN", lambda: next((p.id, p.author.email) for p in feed))
+    measure("one JOIN", lambda: next((p.id, p.user.email) for p in feed))
     show_sql(feed)
 
     # 4. EXISTS ----------------------------------------------------------
-    title("4. How many users have never posted?")
-    never = User.objects.filter(~Exists(Post.objects.filter(author=OuterRef("pk"))))
+    title("4. How many users have never messageed?")
+    never = User.objects.filter(~Exists(Message.objects.filter(user=OuterRef("pk"))))
 
     def python_way():
-        authors = set(Post.objects.values_list("author_id", flat=True))
-        return sum(1 for uid in User.objects.values_list("id", flat=True) if uid not in authors)
+        users = set(Message.objects.values_list("user_id", flat=True))
+        return sum(1 for uid in User.objects.values_list("id", flat=True) if uid not in users)
 
     measure("Python sets", python_way)
     measure("NOT EXISTS", never.count)
     show_sql(never)
 
-    # 5. Window function: top 3 posts per friend --------------------------
-    title("5. Each of my friends' 3 most-liked posts (window function)")
-    top3 = (Post.objects.filter(author__friend_of__user_id=me)
+    # 5. Window function: top 3 messages per friend --------------------------
+    title("5. Each of my friends' 3 most-liked messages (window function)")
+    top3 = (Message.objects.filter(user__friend_of__user_id=me)
             .annotate(like_count=Count("likes"))
-            .annotate(rank=Window(RowNumber(), partition_by=F("author_id"), order_by=F("like_count").desc()))
+            .annotate(rank=Window(RowNumber(), partition_by=F("user_id"), order_by=F("like_count").desc()))
             .filter(rank__lte=3))                                   # Django 4.2+
     measure("window", lambda: len(list(top3)))
     show_sql(top3)
 
     # 5b. A view, read through an unmanaged model
-    title("5b. Reading the post_stats view through a model")
+    title("5b. Reading the message_stats view through a model")
     measure("view", lambda: [s.like_count for s in
-                             PostStats.objects.filter(author_id=top_author).order_by("-like_count")[:3]])
+                             MessageStats.objects.filter(user_id=top_user).order_by("-like_count")[:3]])
 
     # 6. Bulk update: save() per row vs. queryset.update() ----------------
-    title("6. Mark all of the busiest author's posts as edited")
+    title("6. Mark all of the busiest user's messages as edited")
 
     def python_way():
-        posts = list(Post.objects.filter(author_id=top_author))
-        for p in posts:
+        messages = list(Message.objects.filter(user_id=top_user))
+        for p in messages:
             p.updated_at = timezone.now()
-            p.save(update_fields=["updated_at"])                    # one UPDATE per post
-        return len(posts)
+            p.save(update_fields=["updated_at"])                    # one UPDATE per message
+        return len(messages)
 
     measure("save() per row", python_way)
-    measure("update()", lambda: Post.objects.filter(author_id=top_author).update(updated_at=Now()))
+    measure("update()", lambda: Message.objects.filter(user_id=top_user).update(updated_at=Now()))
 
     # 7. Calling database functions --------------------------------------
     title("7. Calling functions defined in the database (db_objects.sql)")
 
     def call_feed():
-        # raw() maps the rows onto Post objects; the query must return the primary key as id.
-        rows = Post.objects.raw("SELECT post_id AS id, body, created_at FROM feed(%s, %s)", [me, 5])
+        # raw() maps the rows onto Message objects; the query must return the primary key as id.
+        rows = Message.objects.raw("SELECT message_id AS id, body, created_at FROM feed(%s, %s)", [me, 5])
         return [p.id for p in rows]
 
     def call_like():
-        post_id = Post.objects.order_by("id").values_list("id", flat=True).first()
+        message_id = Message.objects.order_by("id").values_list("id", flat=True).first()
         with connection.cursor() as c:
-            c.execute("SELECT like_post(%s, %s)", [me, post_id])
+            c.execute("SELECT like_message(%s, %s)", [me, message_id])
             return c.fetchone()[0]
 
     measure("feed()", call_feed)
-    measure("like_post()", call_like)
+    measure("like_message()", call_like)
 
     # 8. Raw SQL, safely parameterized -----------------------------------
     title("8. Raw SQL with parameters (never build SQL with f-strings)")
 
     def raw_way():
         with connection.cursor() as c:
-            c.execute("SELECT count(*) FROM likes l JOIN posts p ON p.id = l.post_id "
-                      "WHERE p.author_id = %s AND l.created_at > now() - make_interval(days => %s)",
-                      [top_author, 30])
+            c.execute("SELECT count(*) FROM likes l JOIN messages p ON p.id = l.message_id "
+                      "WHERE p.user_id = %s AND l.created_at > now() - make_interval(days => %s)",
+                      [top_user, 30])
             return c.fetchone()[0]
 
     measure("cursor", raw_way)

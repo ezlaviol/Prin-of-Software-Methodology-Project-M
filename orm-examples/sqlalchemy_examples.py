@@ -30,18 +30,18 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(320))
-    posts: Mapped[list["Post"]] = relationship(back_populates="author")
+    messages: Mapped[list["Message"]] = relationship(back_populates="user")
     friendships: Mapped[list["Friendship"]] = relationship(foreign_keys="Friendship.user_id")
 
 
-class Post(Base):
-    __tablename__ = "posts"
+class Message(Base):
+    __tablename__ = "messages"
     id: Mapped[int] = mapped_column(primary_key=True)
-    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    author: Mapped[User] = relationship(back_populates="posts")
+    user: Mapped[User] = relationship(back_populates="messages")
     likes: Mapped[list["Like"]] = relationship()
 
 
@@ -57,7 +57,7 @@ class Like(Base):
     __tablename__ = "likes"
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    post_id: Mapped[int] = mapped_column(ForeignKey("posts.id"))
+    message_id: Mapped[int] = mapped_column(ForeignKey("messages.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -97,39 +97,39 @@ def title(t):
 
 def main():
     with Session(engine) as s:
-        # A typical user with 10-20 friends, and the busiest author.
+        # A typical user with 10-20 friends, and the busiest user.
         me = s.scalar(text("SELECT user_id FROM friendships GROUP BY user_id "
                            "HAVING count(*) BETWEEN 10 AND 20 ORDER BY user_id LIMIT 1"))
-        top_author = s.scalar(text("SELECT author_id FROM posts GROUP BY author_id "
+        top_user = s.scalar(text("SELECT user_id FROM messages GROUP BY user_id "
                                    "ORDER BY count(*) DESC LIMIT 1"))
-    print(f"Example user: {me}; busiest author: {top_author}")
+    print(f"Example user: {me}; busiest user: {top_user}")
 
     # 1. Related rows: N+1 queries vs. one JOIN -------------------------
-    title("1. Newest 20 posts with their authors' emails")
+    title("1. Newest 20 messages with their users' emails")
 
     def python_way(s):
-        posts = s.scalars(select(Post).order_by(Post.created_at.desc()).limit(20)).all()
-        return len({p.author.email for p in posts})       # each .author is a query
+        messages = s.scalars(select(Message).order_by(Message.created_at.desc()).limit(20)).all()
+        return len({p.user.email for p in messages})       # each .user is a query
 
     def db_way(s):
-        stmt = select(Post).options(joinedload(Post.author)).order_by(Post.created_at.desc()).limit(20)
-        posts = s.scalars(stmt).all()
-        return len({p.author.email for p in posts})
+        stmt = select(Message).options(joinedload(Message.user)).order_by(Message.created_at.desc()).limit(20)
+        messages = s.scalars(stmt).all()
+        return len({p.user.email for p in messages})
 
     measure("lazy loading", python_way)
     measure("joinedload", db_way)
 
     # 2. Aggregation: count in Python vs. COUNT ... GROUP BY -----------
-    title("2. Like counts for the busiest author's posts")
+    title("2. Like counts for the busiest user's messages")
 
     def python_way(s):
-        posts = s.scalars(select(Post).where(Post.author_id == top_author)).all()
-        return sum(len(p.likes) for p in posts)            # loads every like row
+        messages = s.scalars(select(Message).where(Message.user_id == top_user)).all()
+        return sum(len(p.likes) for p in messages)            # loads every like row
 
-    stmt = (select(Post.id, func.count(Like.id).label("likes"))
-            .outerjoin(Like, Like.post_id == Post.id)
-            .where(Post.author_id == top_author)
-            .group_by(Post.id))
+    stmt = (select(Message.id, func.count(Like.id).label("likes"))
+            .outerjoin(Like, Like.message_id == Message.id)
+            .where(Message.user_id == top_user)
+            .group_by(Message.id))
 
     def db_way(s):
         return sum(n for _, n in s.execute(stmt))
@@ -138,20 +138,20 @@ def main():
     measure("GROUP BY", db_way)
     show_sql(stmt)
 
-    # 3. Multi-table join: a feed of friends' posts ---------------------
-    title("3. Feed: 20 newest posts by my friends, with author email")
+    # 3. Multi-table join: a feed of friends' messages ---------------------
+    title("3. Feed: 20 newest messages by my friends, with user email")
 
     def python_way(s):
         user = s.get(User, me)
-        posts = [p for f in user.friendships for p in f.friend.posts]   # every friend, every post
-        posts.sort(key=lambda p: p.created_at, reverse=True)
-        return [(p.id, p.author.email) for p in posts[:20]][0]
+        messages = [p for f in user.friendships for p in f.friend.messages]   # every friend, every message
+        messages.sort(key=lambda p: p.created_at, reverse=True)
+        return [(p.id, p.user.email) for p in messages[:20]][0]
 
-    feed_stmt = (select(Post.id, User.email)
-                 .join(Friendship, Friendship.friend_id == Post.author_id)
-                 .join(User, User.id == Post.author_id)
+    feed_stmt = (select(Message.id, User.email)
+                 .join(Friendship, Friendship.friend_id == Message.user_id)
+                 .join(User, User.id == Message.user_id)
                  .where(Friendship.user_id == me)
-                 .order_by(Post.created_at.desc())
+                 .order_by(Message.created_at.desc())
                  .limit(20))
 
     def db_way(s):
@@ -161,14 +161,14 @@ def main():
     measure("one JOIN", db_way)
     show_sql(feed_stmt)
 
-    # 4. EXISTS: users who have never posted ----------------------------
-    title("4. How many users have never posted?")
+    # 4. EXISTS: users who have never messageed ----------------------------
+    title("4. How many users have never messaged?")
 
     def python_way(s):
-        authors = set(s.scalars(select(Post.author_id)))    # every post's author id
-        return sum(1 for uid in s.scalars(select(User.id)) if uid not in authors)
+        users = set(s.scalars(select(Message.user_id)))    # every message's user id
+        return sum(1 for uid in s.scalars(select(User.id)) if uid not in users)
 
-    never = select(func.count()).select_from(User).where(~exists().where(Post.author_id == User.id))
+    never = select(func.count()).select_from(User).where(~exists().where(Message.user_id == User.id))
 
     def db_way(s):
         return s.scalar(never)
@@ -177,32 +177,32 @@ def main():
     measure("NOT EXISTS", db_way)
     show_sql(never)
 
-    # 5. Window function over a view: top 3 posts per author ------------
-    title("5. Each of my friends' 3 most-liked posts (view + window function)")
-    post_stats = Table("post_stats", Base.metadata, autoload_with=engine)   # a view, read like a table
+    # 5. Window function over a view: top 3 messages per user ------------
+    title("5. Each of my friends' 3 most-liked messages (view + window function)")
+    message_stats = Table("message_stats", Base.metadata, autoload_with=engine)   # a view, read like a table
 
-    ranked = (select(post_stats.c.author_id, post_stats.c.post_id, post_stats.c.like_count,
-                     func.row_number().over(partition_by=post_stats.c.author_id,
-                                            order_by=post_stats.c.like_count.desc()).label("rank"))
-              .where(post_stats.c.author_id.in_(select(Friendship.friend_id).where(Friendship.user_id == me)))
+    ranked = (select(message_stats.c.user_id, message_stats.c.message_id, message_stats.c.like_count,
+                     func.row_number().over(partition_by=message_stats.c.user_id,
+                                            order_by=message_stats.c.like_count.desc()).label("rank"))
+              .where(message_stats.c.user_id.in_(select(Friendship.friend_id).where(Friendship.user_id == me)))
               .subquery())
-    top3 = select(ranked).where(ranked.c.rank <= 3).order_by(ranked.c.author_id, ranked.c.rank)
+    top3 = select(ranked).where(ranked.c.rank <= 3).order_by(ranked.c.user_id, ranked.c.rank)
 
     def view_way(s):
         return len(s.execute(top3).all())
 
-    # The same result without the view: filter to my friends' posts first,
+    # The same result without the view: filter to my friends' messages first,
     # then count likes and rank only those.
     likes = func.count(Like.id)
-    ranked2 = (select(Post.author_id, Post.id.label("post_id"), likes.label("like_count"),
-                      func.row_number().over(partition_by=Post.author_id,
+    ranked2 = (select(Message.user_id, Message.id.label("message_id"), likes.label("like_count"),
+                      func.row_number().over(partition_by=Message.user_id,
                                              order_by=likes.desc()).label("rank"))
-               .join(Friendship, Friendship.friend_id == Post.author_id)
-               .outerjoin(Like, Like.post_id == Post.id)
+               .join(Friendship, Friendship.friend_id == Message.user_id)
+               .outerjoin(Like, Like.message_id == Message.id)
                .where(Friendship.user_id == me)
-               .group_by(Post.author_id, Post.id)
+               .group_by(Message.user_id, Message.id)
                .subquery())
-    top3_direct = select(ranked2).where(ranked2.c.rank <= 3).order_by(ranked2.c.author_id, ranked2.c.rank)
+    top3_direct = select(ranked2).where(ranked2.c.rank <= 3).order_by(ranked2.c.user_id, ranked2.c.rank)
 
     def direct_way(s):
         return len(s.execute(top3_direct).all())
@@ -212,16 +212,16 @@ def main():
     show_sql(top3_direct)
 
     # 6. Bulk update: load-modify-save vs. one UPDATE -------------------
-    title("6. Mark all of the busiest author's posts as edited")
+    title("6. Mark all of the busiest user's messages as edited")
 
     def python_way(s):
-        posts = s.scalars(select(Post).where(Post.author_id == top_author)).all()
-        for p in posts:
+        messages = s.scalars(select(Message).where(Message.user_id == top_user)).all()
+        for p in messages:
             p.updated_at = datetime.now().astimezone()
-        s.commit()      # one UPDATE per post (sent as a batch, but still one per row)
-        return len(posts)
+        s.commit()      # one UPDATE per message (sent as a batch, but still one per row)
+        return len(messages)
 
-    bulk = update(Post).where(Post.author_id == top_author).values(updated_at=func.now())
+    bulk = update(Message).where(Message.user_id == top_user).values(updated_at=func.now())
 
     def db_way(s):
         n = s.execute(bulk).rowcount
@@ -235,27 +235,27 @@ def main():
     # 7. Calling database functions -------------------------------------
     title("7. Calling functions defined in the database (db_objects.sql)")
 
-    feed = func.feed(me, 5).table_valued("post_id", "author_email", "body", "created_at", "like_count")
+    feed = func.feed(me, 5).table_valued("message_id", "user_email", "body", "created_at", "like_count")
 
     def call_feed(s):
-        return [row.post_id for row in s.execute(select(feed.c.post_id, feed.c.like_count))]
+        return [row.message_id for row in s.execute(select(feed.c.message_id, feed.c.like_count))]
 
     def call_like(s):
-        post_id = s.scalar(select(Post.id).order_by(Post.id).limit(1))
-        n = s.scalar(select(func.like_post(me, post_id)))   # any function name works: func.<name>
+        message_id = s.scalar(select(Message.id).order_by(Message.id).limit(1))
+        n = s.scalar(select(func.like_message(me, message_id)))   # any function name works: func.<name>
         s.commit()
         return n
 
     measure("feed()", call_feed)
-    measure("like_post()", call_like)
+    measure("like_message()", call_like)
 
     # 8. Raw SQL, safely parameterized ----------------------------------
     title("8. Raw SQL with bound parameters (never build SQL with f-strings)")
-    raw = text("SELECT count(*) FROM likes l JOIN posts p ON p.id = l.post_id "
-               "WHERE p.author_id = :author AND l.created_at > now() - make_interval(days => :days)")
+    raw = text("SELECT count(*) FROM likes l JOIN messages p ON p.id = l.message_id "
+               "WHERE p.user_id = :user AND l.created_at > now() - make_interval(days => :days)")
 
     def raw_way(s):
-        return s.scalar(raw, {"author": top_author, "days": 30})
+        return s.scalar(raw, {"user": top_user, "days": 30})
 
     measure("text()", raw_way)
 
