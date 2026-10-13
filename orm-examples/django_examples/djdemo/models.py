@@ -14,15 +14,15 @@ class User(models.Model):
         db_table = "users"
 
 
-class Post(models.Model):
-    author = models.ForeignKey(User, models.DO_NOTHING, db_column="author_id", related_name="posts")
+class Message(models.Model):
+    user = models.ForeignKey(User, models.DO_NOTHING, db_column="user_id", related_name="messages")
     body = models.TextField()
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
 
     class Meta:
         managed = False
-        db_table = "posts"
+        db_table = "messages"
 
 
 class Friendship(models.Model):
@@ -36,7 +36,7 @@ class Friendship(models.Model):
 
 class Like(models.Model):
     user = models.ForeignKey(User, models.DO_NOTHING, db_column="user_id", related_name="likes")
-    post = models.ForeignKey(Post, models.DO_NOTHING, db_column="post_id", related_name="likes")
+    message = models.ForeignKey(Message, models.DO_NOTHING, db_column="message_id", related_name="likes")
     created_at = models.DateTimeField()
 
     class Meta:
@@ -44,14 +44,14 @@ class Like(models.Model):
         db_table = "likes"
 
 
-class PostStats(models.Model):
+class MessageStats(models.Model):
     """A database VIEW (see db_objects.sql), read like any other model."""
-    post = models.OneToOneField(Post, models.DO_NOTHING, primary_key=True, db_column="post_id")
-    author_id = models.IntegerField()
+    message = models.OneToOneField(Message, models.DO_NOTHING, primary_key=True, db_column="message_id")
+    user_id = models.IntegerField()
     created_at = models.DateTimeField()
     like_count = models.IntegerField()
     last_liked_at = models.DateTimeField(null=True)
 
     class Meta:
         managed = False
-        db_table = "post_stats"
+        db_table = "message_stats"
