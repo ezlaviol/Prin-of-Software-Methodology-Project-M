@@ -176,7 +176,7 @@ def feed_page(request: Request, page: int = 1, db: Session = Depends(get_db)):
         current_user_id = auth.get_current_user_id(token)
     except Exception:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    messages = db.query(models.Message).order_by(models.Message.created_at.desc()).all()
+    # messages = db.query(models.Message).order_by(models.Message.created_at.desc()).all()
     result = []
 
     
