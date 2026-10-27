@@ -186,7 +186,15 @@ def feed_page(request: Request, page: int = 1, db: Session = Depends(get_db)):
     friendships = db.query(models.Friendship).filter(models.Friendship.user_id == current_user_id).all()
     friend_ids = {f.friend_id for f in friendships}
     friends = db.query(models.User).filter(models.User.id.in_(friend_ids)).all() if friend_ids else []
-    users = db.query(models.User).filter(models.User.id != current_user_id).order_by(models.User.email.asc()).all()
+    # users = db.query(models.User).filter(models.User.id != current_user_id).order_by(models.User.email.asc()).all()
+    page_author_ids = {p["user_id"] for p in result} - {current_user_id} # this is for limiting friendable users to ones on the current page
+    users = (
+        db.query(models.User)
+        .filter(models.User.id.in_(page_author_ids))
+        .order_by(models.User.email.asc())
+        .all()
+    ) if page_author_ids else []   
+
     discoverable_users = [
         {"id": u.id, "email": u.email, "is_friend": u.id in friend_ids}
         for u in users
