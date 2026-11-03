@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from sqlalchemy import func, select, and_
+from sqlalchemy import func, select, and_, text
 import os
 from . import db, models, auth
 from .db import get_db
@@ -557,6 +557,51 @@ def user_summary(user_id: int, db: Session = Depends(get_db)):
     friends = db.query(func.count(models.Friendship.id)).filter(models.Friendship.user_id == user_id).scalar()
     return {"id": u.id, "email": u.email, "message_count": msgs,
             "likes_received": likes_received, "friend_count": friends}
+
+
+# ========== Search API ===========
+
+# Full-text search (Postgres only): messages + users + likes via search.message_search
+@app.get("/api/search")
+def search_messages(
+    q: str = Query(..., min_length=1, max_length=200),
+    author: str | None = None,
+    min_likes: int | None = Query(None, ge=0),
+    page: int = Query(1),
+    page_size: int = Query(20),
+    db: Session = Depends(get_db),
+):
+    page, page_size = _page_params(page, page_size)
+    rows = db.execute(
+        text(
+            "select * from public.search_messages("
+            ":q, :author, :min_likes, :lim, :off)"
+        ),
+        {
+            "q": q,
+            "author": author,
+            "min_likes": min_likes,
+            "lim": page_size,
+            "off": (page - 1) * page_size,
+        },
+    ).mappings().all()
+    return {"results": [dict(r) for r in rows], "page": page, "page_size": page_size}
+
+# update later with formatting to our structure
+# @app.get("/api/search")
+# def search(q: str = Query(min_length=1, max_length=200),
+#     category: str | None = None,
+#     max_price: float | None = None,
+#     page: int = Query(1, ge=1),
+#     db: Session = Depends(get_db)):
+#     params = dict(q=q, cat=category,
+#     max_price=max_price,
+#     lim=20, off=(page - 1) * 20)
+#     rows = db.execute(SEARCH, params)
+#     facets = db.execute(FACETS, {"q": q})
+#     return {
+#     "results": rows.mappings().all(),
+#     "facets": facets.mappings().all()}
 
 
 # ============ HTML UI ============
