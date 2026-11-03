@@ -8,6 +8,7 @@ import os
 from . import db, models, auth
 from .db import get_db
 from .schemas import UserCreate, Token, MessageCreate, FriendshipCreate
+from .search_sql import SEARCH, FACETS
 
 app = FastAPI()
 
