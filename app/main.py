@@ -561,31 +561,54 @@ def user_summary(user_id: int, db: Session = Depends(get_db)):
 
 # ========== Search API ===========
 
-# Full-text search (Postgres only): messages + users + likes via search.message_search
 @app.get("/api/search")
 def search_messages(
     q: str = Query(..., min_length=1, max_length=200),
-    author: str | None = None,
+    author_email: str | None = None,
     min_likes: int | None = Query(None, ge=0),
-    page: int = Query(1),
-    page_size: int = Query(20),
+    page: int = Query(1, ge=1),
     db: Session = Depends(get_db),
 ):
-    page, page_size = _page_params(page, page_size)
-    rows = db.execute(
-        text(
-            "select * from public.search_messages("
-            ":q, :author, :min_likes, :lim, :off)"
-        ),
-        {
-            "q": q,
-            "author": author,
-            "min_likes": min_likes,
-            "lim": page_size,
-            "off": (page - 1) * page_size,
-        },
-    ).mappings().all()
-    return {"results": [dict(r) for r in rows], "page": page, "page_size": page_size}
+    params = {
+        "q": q,
+        "author_email": author_email,
+        "min_likes": min_likes,
+        "lim": 20,
+        "off": (page - 1) * 20,
+    }
+    rows = db.execute(SEARCH, params).mappings().all()
+    facets = db.execute(FACETS, {"q": q}).mappings().all()
+
+    return {
+        "results": [dict(row) for row in rows],
+        "facets": [dict(row) for row in facets],
+    }
+
+# Full-text search (Postgres only): messages + users + likes via search.message_search
+# @app.get("/api/search")
+# def search_messages(
+#     q: str = Query(..., min_length=1, max_length=200),
+#     author: str | None = None,
+#     min_likes: int | None = Query(None, ge=0),
+#     page: int = Query(1),
+#     page_size: int = Query(20),
+#     db: Session = Depends(get_db),
+# ):
+#     page, page_size = _page_params(page, page_size)
+#     rows = db.execute(
+#         text(
+#             "select * from public.search_messages("
+#             ":q, :author, :min_likes, :lim, :off)"
+#         ),
+#         {
+#             "q": q,
+#             "author": author,
+#             "min_likes": min_likes,
+#             "lim": page_size,
+#             "off": (page - 1) * page_size,
+#         },
+#     ).mappings().all()
+#     return {"results": [dict(r) for r in rows], "page": page, "page_size": page_size}
 
 # update later with formatting to our structure
 # @app.get("/api/search")
