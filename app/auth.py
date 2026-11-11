@@ -1,5 +1,4 @@
 import os
-import uuid
 from passlib.context import CryptContext
 import jwt
 import hashlib
@@ -77,8 +76,7 @@ def get_current_user_id(token: str) -> int:
         sub = payload.get("sub")
         if sub is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return uuid.UUID(sub)
-        # return int(sub)
+        return int(sub)
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except (jwt.InvalidTokenError, ValueError):
