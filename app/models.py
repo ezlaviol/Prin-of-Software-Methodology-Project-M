@@ -1,4 +1,78 @@
-from sqlalchemy import Column, Integer, String, DateTime, func, ForeignKey, Text, UniqueConstraint, Index
+# from sqlalchemy import Column, Integer, String, DateTime, func, ForeignKey, Text, UniqueConstraint, Index
+# from sqlalchemy.ext.declarative import declarative_base
+# from sqlalchemy.orm import relationship
+
+# Base = declarative_base()
+
+# class User(Base):
+#     __tablename__ = "users"
+#     id = Column(Integer, primary_key=True, index=True)
+#     email = Column(String, unique=True, index=True, nullable=False)
+#     hashed_password = Column(String(255), nullable=False)
+#     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+#     messages = relationship("Message", back_populates="user", cascade="all, delete-orphan")
+#     likes = relationship("Like", back_populates="user", cascade="all, delete-orphan")
+
+#     sent_friendships = relationship(
+#         "Friendship",
+#         foreign_keys="Friendship.user_id",
+#         back_populates="user",
+#         cascade="all, delete-orphan",
+#     )
+#     received_friendships = relationship(
+#         "Friendship",
+#         foreign_keys="Friendship.friend_id",
+#         back_populates="friend",
+#         cascade="all, delete-orphan",
+#     )
+
+
+# class Message(Base):
+#     __tablename__ = "messages"
+#     id = Column(Integer, primary_key=True, index=True)
+#     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+#     body = Column(Text, nullable=False)
+#     created_at = Column(DateTime(timezone=True), server_default=func.now())
+#     updated_at = Column(DateTime(timezone=True), server_default=func.now(), server_onupdate=func.now())
+
+#     user = relationship("User", back_populates="messages")
+#     likes = relationship("Like", back_populates="message", cascade="all, delete-orphan")
+
+#     __table_args__ = (
+#         Index("ix_messages_created_at_id", "created_at", "id"),    # global feed ordering
+#         Index("ix_messages_user_created", "user_id", "created_at"),  # per-user / friends feed
+#         )
+
+
+# class Like(Base):
+#     __tablename__ = "likes"
+#     id = Column(Integer, primary_key=True, index=True)
+#     message_id = Column(Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True)
+#     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+#     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+#     message = relationship("Message", back_populates="likes")
+#     user = relationship("User", back_populates="likes")
+
+#     __table_args__ = (UniqueConstraint('message_id', 'user_id', name='uq_like_message_user'),)
+
+
+# class Friendship(Base):
+#     __tablename__ = "friendships"
+#     id = Column(Integer, primary_key=True, index=True)
+#     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+#     friend_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+#     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+#     user = relationship("User", foreign_keys=[user_id], back_populates="sent_friendships")
+#     friend = relationship("User", foreign_keys=[friend_id], back_populates="received_friendships")
+
+#     __table_args__ = (UniqueConstraint('user_id', 'friend_id', name='uq_friendship_user_friend'),)
+
+import uuid
+from sqlalchemy import Column, String, DateTime, func, ForeignKey, Text, UniqueConstraint, Index
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -6,7 +80,7 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -30,8 +104,8 @@ class User(Base):
 
 class Message(Base):
     __tablename__ = "messages"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     body = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), server_onupdate=func.now())
@@ -42,14 +116,14 @@ class Message(Base):
     __table_args__ = (
         Index("ix_messages_created_at_id", "created_at", "id"),    # global feed ordering
         Index("ix_messages_user_created", "user_id", "created_at"),  # per-user / friends feed
-        )
+    )
 
 
 class Like(Base):
     __tablename__ = "likes"
-    id = Column(Integer, primary_key=True, index=True)
-    message_id = Column(Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     message = relationship("Message", back_populates="likes")
@@ -60,9 +134,9 @@ class Like(Base):
 
 class Friendship(Base):
     __tablename__ = "friendships"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    friend_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    friend_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", foreign_keys=[user_id], back_populates="sent_friendships")

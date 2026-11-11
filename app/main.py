@@ -9,6 +9,7 @@ from . import db, models, auth
 from .db import get_db
 from .schemas import UserCreate, Token, MessageCreate, FriendshipCreate
 from .search_sql import SEARCH, FACETS
+from uuid import UUID
 
 app = FastAPI()
 
@@ -19,7 +20,7 @@ def _page_params(page: int, page_size: int):
     return max(page, 1), min(max(page_size, 1), 100)
 
 
-def _feed_query(db: Session, author_id: int | None = None, friends_of: int | None = None):
+def _feed_query(db: Session, author_id: UUID | None = None, friends_of: UUID | None = None):
     """messages JOIN users (+ likes count) (+ friendships when friends_of is set)."""
     like_count = (
         select(func.count(models.Like.id))
@@ -236,7 +237,7 @@ async def create_post_form(request: Request, db: Session = Depends(get_db)):
 
 
 @app.post("/posts/{msg_id}/like")
-def like_post_form(msg_id: int, request: Request, db: Session = Depends(get_db)):
+def like_post_form(msg_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Like a post from the HTML feed."""
     raw = request.cookies.get("access_token")
     if not raw:
@@ -264,7 +265,7 @@ def like_post_form(msg_id: int, request: Request, db: Session = Depends(get_db))
 
 
 @app.get("/posts/{msg_id}/edit", response_class=HTMLResponse)
-def edit_post_form_page(msg_id: int, request: Request, db: Session = Depends(get_db)):
+def edit_post_form_page(msg_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Show the edit form for a post owner."""
     raw = request.cookies.get("access_token")
     if not raw:
@@ -292,7 +293,7 @@ def edit_post_form_page(msg_id: int, request: Request, db: Session = Depends(get
 
 
 @app.post("/posts/{msg_id}/edit")
-async def edit_post_form(msg_id: int, request: Request, db: Session = Depends(get_db)):
+async def edit_post_form(msg_id: UUID, request: Request, db: Session = Depends(get_db)):
     """Update a post from the web form."""
     raw = request.cookies.get("access_token")
     if not raw:
@@ -343,7 +344,7 @@ async def add_friend_form(request: Request, db: Session = Depends(get_db)):
     form = await request.form()
     friend_id_raw = form.get("friend_id")
     try:
-        friend_id = int(friend_id_raw)
+        friend_id = UUID(friend_id_raw)
     except (TypeError, ValueError):
         return RedirectResponse(url="/feed?error=Invalid+friend+selection", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -399,7 +400,7 @@ def list_messages(page: int = Query(1), page_size: int = Query(20), db: Session 
 
 # 2 tables (messages + users), SINGLE
 @app.get("/api/messages/{msg_id}")
-def get_message(msg_id: int, db: Session = Depends(get_db)):
+def get_message(msg_id: UUID, db: Session = Depends(get_db)):
     row = (db.query(models.Message.id, models.Message.body, models.Message.created_at,
                     models.User.id.label("user_id"), models.User.email.label("user_email"))
            .join(models.User, models.User.id == models.Message.user_id)
@@ -410,7 +411,7 @@ def get_message(msg_id: int, db: Session = Depends(get_db)):
 
 @app.patch("/api/messages/{msg_id}")
 def edit_message(
-    msg_id: int,
+    msg_id: UUID,
     msg: MessageCreate,
     db: Session = Depends(get_db),
     authorization: str = Header(None),
@@ -433,7 +434,7 @@ def edit_message(
 
 @app.post("/api/messages/{msg_id}/like")
 def like_message(
-    msg_id: int,
+    msg_id: UUID,
     db: Session = Depends(get_db),
     authorization: str = Header(None),
 ):
