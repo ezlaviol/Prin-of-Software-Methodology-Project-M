@@ -379,24 +379,48 @@ def logout():
 @app.post("/api/messages")
 def create_message(
     msg: MessageCreate,
-    db: Session = Depends(get_db),
     authorization: str = Header(None),
 ):
-    """Create a new message/post."""
+    """Create a new message/post on the author's shard."""
     token = get_token_from_header(authorization)
     user_id = auth.get_current_user_id(token)
     
-    db_msg = models.Message(user_id=user_id, body=msg.body)
-    db.add(db_msg)
-    db.commit()
-    db.refresh(db_msg)
-    return {"id": db_msg.id, "user_id": db_msg.user_id, "body": db_msg.body, "created_at": db_msg.created_at}
+    shard_sess = db.get_shard_session(user_id)
+    try:
+        db_msg = models.Message(user_id=user_id, body=msg.body)
+        shard_sess.add(db_msg)
+        shard_sess.commit()
+        shard_sess.refresh(db_msg)
+        return {"id": db_msg.id, "user_id": db_msg.user_id, "body": db_msg.body, "created_at": db_msg.created_at}
+    finally:
+        shard_sess.close()
 
 
 # 3 tables (messages + users + likes), LIST
 @app.get("/api/messages")
-def list_messages(page: int = Query(1), page_size: int = Query(20), db: Session = Depends(get_db)):
-    return _paginate(_feed_query(db), page, page_size)
+def list_messages(page: int = Query(1), page_size: int = Query(20)):
+    page, page_size = _page_params(page, page_size)
+    all_rows = []
+    for s in db.get_all_shard_sessions():
+        try:
+            rows = (
+                _feed_query(s)
+                .order_by(models.Message.created_at.desc(), models.Message.id.desc())
+                .limit(page * page_size)
+                .all()
+            )
+            all_rows.extend([dict(r._mapping) for r in rows])
+        finally:
+            s.close()
+    all_rows.sort(key=lambda r: r["created_at"], reverse=True)
+    start = (page - 1) * page_size
+    return {
+        "items": all_rows[start:start + page_size],
+        "page": page,
+        "page_size": page_size,
+        "total": len(all_rows),
+        "pages": max((len(all_rows) + page_size - 1) // page_size, 1),
+    }
 
 # 2 tables (messages + users), SINGLE
 @app.get("/api/messages/{msg_id}")
@@ -413,51 +437,56 @@ def get_message(msg_id: UUID, db: Session = Depends(get_db)):
 def edit_message(
     msg_id: UUID,
     msg: MessageCreate,
-    db: Session = Depends(get_db),
     authorization: str = Header(None),
 ):
     """Edit a message (only owner can edit)."""
     token = get_token_from_header(authorization)
     user_id = auth.get_current_user_id(token)
     
-    db_msg = db.query(models.Message).filter(models.Message.id == msg_id).first()
-    if not db_msg:
-        raise HTTPException(status_code=404, detail="Message not found")
-    if db_msg.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    db_msg.body = msg.body
-    db.commit()
-    db.refresh(db_msg)
-    return {"id": db_msg.id, "body": db_msg.body, "updated_at": db_msg.updated_at}
+    shard_sess = db.get_shard_session(user_id)
+    try:
+        db_msg = shard_sess.query(models.Message).filter(models.Message.id == msg_id).first()
+        if not db_msg:
+            raise HTTPException(status_code=404, detail="Message not found")
+        if db_msg.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        db_msg.body = msg.body
+        shard_sess.commit()
+        shard_sess.refresh(db_msg)
+        return {"id": db_msg.id, "body": db_msg.body, "updated_at": db_msg.updated_at}
+    finally:
+        shard_sess.close()
 
 
 @app.post("/api/messages/{msg_id}/like")
 def like_message(
     msg_id: UUID,
-    db: Session = Depends(get_db),
     authorization: str = Header(None),
 ):
-    """Like a message."""
+    """Like a message (stored on the post author's shard)."""
     token = get_token_from_header(authorization)
     user_id = auth.get_current_user_id(token)
     
-    db_msg = db.query(models.Message).filter(models.Message.id == msg_id).first()
-    if not db_msg:
-        raise HTTPException(status_code=404, detail="Message not found")
-    
-    # Check if already liked
-    existing = db.query(models.Like).filter(
-        models.Like.message_id == msg_id,
-        models.Like.user_id == user_id,
-    ).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Already liked")
-    
-    like = models.Like(message_id=msg_id, user_id=user_id)
-    db.add(like)
-    db.commit()
-    return {"msg": "liked"}
+    for s in db.get_all_shard_sessions():
+        try:
+            db_msg = s.query(models.Message).filter(models.Message.id == msg_id).first()
+            if db_msg:
+                existing = s.query(models.Like).filter(
+                    models.Like.message_id == msg_id,
+                    models.Like.user_id == user_id,
+                ).first()
+                if existing:
+                    raise HTTPException(status_code=400, detail="Already liked")
+                
+                s.add(models.Like(message_id=msg_id, user_id=user_id))
+                s.commit()
+                return {"msg": "liked"}
+        finally:
+            s.close()
+            
+    raise HTTPException(status_code=404, detail="Message not found")
+
 
 
 # ============ FRIENDS API ============
@@ -526,18 +555,25 @@ def list_users(page: int = Query(1), page_size: int = Query(20), db: Session = D
 
 # 1 table, SINGLE
 @app.get("/api/users/{user_id}")
-def get_user(user_id: int, db: Session = Depends(get_db)):
-    u = db.query(models.User.id, models.User.email, models.User.created_at)\
-          .filter(models.User.id == user_id).first()
-    if not u:
-        raise HTTPException(status_code=404, detail="User not found")
-    return dict(u._mapping)
+def get_user(user_id: UUID):
+    shard_sess = db.get_shard_session(user_id)
+    try:
+        u = shard_sess.query(models.User.id, models.User.email, models.User.created_at)\
+              .filter(models.User.id == user_id).first()
+        if not u:
+            raise HTTPException(status_code=404, detail="User not found")
+        return dict(u._mapping)
+    finally:
+        shard_sess.close()
 
 # 3 tables (messages + users + likes), LIST filtered by author
 @app.get("/api/users/{user_id}/messages")
-def list_user_messages(user_id: int, page: int = Query(1), page_size: int = Query(20),
-                       db: Session = Depends(get_db)):
-    return _paginate(_feed_query(db, author_id=user_id), page, page_size)
+def list_user_messages(user_id: UUID, page: int = Query(1), page_size: int = Query(20)):
+    shard_sess = db.get_shard_session(user_id)
+    try:
+        return _paginate(_feed_query(shard_sess, author_id=user_id), page, page_size)
+    finally:
+        shard_sess.close()
 
 # 4 tables (messages + users + friendships + likes), LIST
 @app.get("/api/feed/friends")
